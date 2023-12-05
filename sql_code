@@ -1,0 +1,75 @@
+-- Creating the table schema
+CREATE TABLE flight (
+    year INT,
+    month INT,
+    carrier VARCHAR(20),
+    carrier_name VARCHAR(20),
+    airport VARCHAR(20),
+    airport_name VARCHAR(20),
+    arr_flights FLOAT,
+    arr_del15 FLOAT,
+    carrier_ct FLOAT,
+    weather_ct FLOAT,
+    nas_ct FLOAT,
+    security_ct FLOAT,
+    late_aircraft_ct FLOAT,
+    arr_cancelled FLOAT,
+    arr_diverted FLOAT,
+    arr_delay FLOAT,
+    carrier_delay FLOAT,
+    weather_delay FLOAT,
+    nas_delay FLOAT,
+    security_delay FLOAT,
+    late_aircraft_delay FLOAT,
+)
+;
+
+-- Bulk inserting data
+BULK INSERT dbo.flight
+FROM '/Airline_Delay_Cause.csv'
+WITH
+(
+    FORMAT = 'CSV',
+    FIRSTROW = 2
+)
+;
+
+-- Ranking airports with the highest percentage of delayed flights by year
+SELECT [year], a.airport, ROUND(a.arr_del15/a.arr_flights * 100, 2) AS percent_delayed, ROUND(carrier_ct/a.arr_del15 * 100, 2) AS carrier_delay_perc, ROUND(weather_ct/a.arr_del15 * 100, 2) AS weather_delay_perc, a.arr_delay AS total_delay_min, ROUND(a.arr_delay/a.arr_del15, 1) AS avg_delay
+FROM (
+    SELECT [year], airport, SUM(arr_del15) AS arr_del15, SUM(arr_flights) AS arr_flights, SUM(carrier_ct) AS carrier_ct, SUM(weather_ct) AS weather_ct, SUM(arr_delay) AS arr_delay
+    FROM dbo.flight
+    WHERE arr_del15 > 0
+        AND (arr_del15 IS NOT NULL OR arr_flights IS NOT NULL)
+    GROUP BY [year], airport
+) a
+WHERE a.airport = 'yng'
+GROUP BY a.year, a.airport, a.arr_del15, a.arr_flights, carrier_ct, weather_ct, a.arr_delay
+ORDER BY percent_delayed DESC
+;
+
+-- Ranking airlines with the highest percentage of delayed flights by year
+SELECT [year], a.carrier_name, ROUND(a.arr_del15/a.arr_flights * 100, 2) AS percent_delayed, ROUND(carrier_ct/a.arr_del15 * 100, 2) AS carrier_delay_perc, ROUND(weather_ct/a.arr_del15 * 100, 2) AS weather_delay_perc, a.arr_delay AS total_delay_min, ROUND(a.arr_delay/a.arr_del15, 1) AS avg_delay
+FROM (
+    SELECT [year], carrier_name, SUM(arr_del15) AS arr_del15, SUM(arr_flights) AS arr_flights, SUM(carrier_ct) AS carrier_ct, SUM(weather_ct) AS weather_ct, SUM(arr_delay) AS arr_delay
+    FROM dbo.flight
+    WHERE arr_del15 > 0
+        AND (arr_del15 IS NOT NULL OR arr_flights IS NOT NULL)
+    GROUP BY [year], carrier_name
+) a
+GROUP BY a.year, a.carrier_name, a.arr_del15, a.arr_flights, carrier_ct, weather_ct, a.arr_delay
+ORDER BY percent_delayed DESC
+;
+
+-- Which month is the worst time to fly?
+SELECT [month], SUM(arr_delay) as total_delay, SUM(arr_cancelled) as total_cancelled, SUM(arr_diverted) as total_diverted
+FROM dbo.flight
+GROUP BY [month]
+ORDER BY total_delay DESC
+;
+
+-- What is the number one cause of delay?
+SELECT airport, ROUND(SUM(carrier_ct), 0) AS carrier_delay, ROUND(SUM(weather_ct), 0) AS weather_delay, ROUND(SUM(nas_ct), 0) AS nas_delay, ROUND(SUM(security_ct), 0) AS security_delay
+FROM dbo.flight
+GROUP BY airport
+;
